@@ -4,7 +4,6 @@ import java.io.File
 import kantan.csv._
 import kantan.csv.ops._
 import Utils._
-import kantan.codecs.resource.ResourceError.OpenError
 
 object Main extends App {
 
@@ -46,8 +45,8 @@ object Main extends App {
           rfc.withHeader("Date", "Reference", "Payee", "Description", "Amount")
         )
       } catch {
-        case err: Exception => println("Error(s) detangling Etsy: \n" + err.toString)
+        case err: Exception => println(s"Error(s) detangling Etsy:\n${err.toString}")
       }
-    case Left(error) => println("Error(s) detangling Etsy: " + error)
+    case Left(error) => println(s"Error(s) detangling Etsy: $error")
   }
 }
