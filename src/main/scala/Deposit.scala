@@ -16,7 +16,7 @@ case class Deposit(date: Date, title: String) extends EtsyTransaction {
   ): Either[String, List[ManagerTransaction]] = {
     val managerTransactions = for {
       depositAmount <- extractDepositAmount(title)
-    } yield List(ManagerTransaction(date, "Deposit: " + title, depositAmount))
+    } yield List(ManagerTransaction(date, "Deposit: " + title, -depositAmount))
     managerTransactions.mapLeft(
       err => s"Could not process Deposit transaction. $err Deposit transaction: ${this.toString}"
     )
