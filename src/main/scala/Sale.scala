@@ -27,7 +27,7 @@ case class Sale(
   def validateCardProcessingFee(
     cardProcessingFee: BigDecimal,
     saleRevenue: BigDecimal,
-    postageRevenue: BigDecimal,
+    shippingRevenue: BigDecimal,
     taxCollected: BigDecimal,
     isDomestic: Boolean
   ): Either[String, BigDecimal] = {
@@ -35,7 +35,7 @@ case class Sale(
     val cardProcessingFlatFee = 0.25
     validateFee(
       cardProcessingFee,
-      saleRevenue + postageRevenue + taxCollected,
+      saleRevenue + shippingRevenue + taxCollected,
       cardProcessingRate,
       cardProcessingFlatFee,
       "Card processing fee"
@@ -48,13 +48,13 @@ case class Sale(
    */
   def validateTaxCollected(
     saleRevenue: BigDecimal,
-    postageRevenue: BigDecimal,
+    shippingRevenue: BigDecimal,
     orderTotal: BigDecimal,
     amount: BigDecimal,
     feesAndTaxes: BigDecimal,
     net: BigDecimal
   ): Either[String, BigDecimal] = {
-    val taxCollected = orderTotal - (saleRevenue + postageRevenue)
+    val taxCollected = orderTotal - (saleRevenue + shippingRevenue)
     val taxRemitted = (amount + feesAndTaxes) - net
     if (taxCollected == taxRemitted)
       Right(taxCollected)
@@ -74,23 +74,23 @@ case class Sale(
         .get(orderId)
         .toRight("No corresponding order found for this sale transaction in orders csv file.")
       saleRevenue = order.orderValue
-      postageRevenue = order.deliveryValue
+      shippingRevenue = order.deliveryValue
       orderTotal = order.orderTotal
-      taxCollected <- validateTaxCollected(saleRevenue, postageRevenue, orderTotal, amount, feesAndTaxes, net)
+      taxCollected <- validateTaxCollected(saleRevenue, shippingRevenue, orderTotal, amount, feesAndTaxes, net)
       isDomestic = order.deliveryCountry == "Australia"
       cardProcessingFee <- validateCardProcessingFee(
         -order.cardProcessingFee,
         saleRevenue,
-        postageRevenue,
+        shippingRevenue,
         taxCollected,
         isDomestic
       )
       orderRevenueDescription = s"Sale revenue: order: $orderId"
-      postageRevenueDescription = s"Postage revenue: order: $orderId"
+      shippingRevenueDescription = s"Shipping revenue: order: $orderId"
       cardProcessingFeeDescription = s"Card processing fees: order: $orderId"
     } yield List(
       ManagerTransaction(date, orderRevenueDescription, saleRevenue),
-      ManagerTransaction(date, postageRevenueDescription, postageRevenue),
+      ManagerTransaction(date, shippingRevenueDescription, shippingRevenue),
       ManagerTransaction(date, cardProcessingFeeDescription, cardProcessingFee)
     )
     managerTransactions.mapLeft(

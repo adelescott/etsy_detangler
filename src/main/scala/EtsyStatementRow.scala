@@ -19,7 +19,7 @@ case class EtsyStatementRow(
 ) {
   def toEtsyTransaction: Either[String, EtsyTransaction] = transactionType match {
     case "Listing" => toListing
-    case "Postage Label" => toPostageLabel
+    case "Postage Label" => toShippingLabel
     case "Transaction" => toCommission
     case "Sale" => toSale
     case "Deposit" => toDeposit
@@ -51,7 +51,7 @@ case class EtsyStatementRow(
   }
 
   def toListing: Either[String, EtsyTransaction] = toSimpleFee("Listing", Listing)
-  def toPostageLabel: Either[String, EtsyTransaction] = toSimpleFee("Postage Label", PostageLabel)
+  def toShippingLabel: Either[String, EtsyTransaction] = toSimpleFee("Shipping Label", ShippingLabel)
   def toCommission: Either[String, EtsyTransaction] = toSimpleFee("Commission", Commission)
 
   /**

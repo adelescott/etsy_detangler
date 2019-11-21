@@ -53,7 +53,7 @@ case class Commission(
   ): Either[String, List[ManagerTransaction]] = {
     if (net > 0) { // This is a refund
       val descriptionPrefix = title match {
-        case "Delivery" => "Delivery commission refund: "
+        case "Delivery" => "Shipping commission refund: "
         case _ => "Sale commission refund: "
       }
       Right(List(ManagerTransaction(date, descriptionPrefix + info, net)))
@@ -61,14 +61,14 @@ case class Commission(
     else {
       title match {
         case "Delivery" =>
-          val descriptionPrefix = "Delivery commission: "
+          val descriptionPrefix = "Shipping commission: "
           val managerTransactions = for {
             orderId <- extractOrderId(info)
             order <- etsyOrders
               .get(orderId)
               .toRight("No corresponding order found for this commission transaction in orders csv file.")
-            postageRevenue = order.deliveryValue
-            commissionFee <- validateCommission(net, postageRevenue)
+            shippingRevenue = order.deliveryValue
+            commissionFee <- validateCommission(net, shippingRevenue)
           } yield List(ManagerTransaction(date, descriptionPrefix + info, commissionFee))
           managerTransactions.mapLeft(
             err => s"Could not process Commission transaction. $err Commission transaction: ${this.toString}"
