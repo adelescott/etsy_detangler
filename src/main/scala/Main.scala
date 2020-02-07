@@ -38,7 +38,7 @@ object Main extends App {
 
   managerTransactionsResult match {
     case Right(managerTransactions) =>
-      val outputFile = new File(cliParser.outputFilename())
+      val outputFile = new File(cliParser.outputDir() + "/detangled_etsy_statement.csv")
       try {
         outputFile.writeCsv[ManagerTransaction](
           managerTransactions,

@@ -15,10 +15,10 @@ case class CliParser(arguments: Seq[String]) extends ScallopConf(arguments) {
     short = 'i',
     descr = "Etsy sold items filename."
   )
-  val outputFilename: ScallopOption[String] = opt[String](
+  val outputDir: ScallopOption[String] = opt[String](
     short = 'o',
-    descr = "Detangled output csv filename.",
-    default = Some("detangled_etsy_statement.csv")
+    descr = "Directory to write detangled output csv filename to.",
+    default = Some(".")
   )
   verify()
 }
