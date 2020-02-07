@@ -103,15 +103,16 @@ case class EtsyStatementRow(
 
   /**
    * Converts this row into a Payment Etsy transaction type. This validates that:
-   * * fees and taxes is non-zero,
-   * * amount is equal to net,
-   * * amount is non-zero.
-   * @return
+   * * amount plus fees and taxes is equal to net,
+   * * net is non-zero.
+   *
+   * It seems that sometimes Etsy places the amount of the payment in Amount and sometimes in Fees & Taxes, depending
+   * on whether the payment is for a refund (Amount) or for an outstanding negative balance (Fees & Taxes).
    */
   def toPayment: Either[String, Payment] =
-    if (feesAndTaxes != 0 || amount != net || amount == 0)
-      Left("Could not create Payment transaction. Fees & taxes was non-zero, or amount wasn't " +
-        s"equal to net, or amount was zero. EtsyStatementRow: ${this.toString}")
+    if (feesAndTaxes + amount != net || net == 0)
+      Left("Could not create Payment transaction. Amount plus fees & taxes wasn't " +
+        s"equal to net, or net was zero. EtsyStatementRow: ${this.toString}")
     else
       Right(Payment(date, title, net))
 }
