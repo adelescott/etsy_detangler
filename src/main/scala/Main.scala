@@ -16,8 +16,8 @@ object Main extends App {
   def readHeader[A: HeaderDecoder](filename: String)
                                   (implicit e: ReaderEngine): Either[ParseError, ReadResult[Seq[String]]] = {
     val file = new File(filename)
-    val reader = CsvSource[File].open(file)
-    reader.map(reader => {
+    val maybeReader = CsvSource[File].open(file)
+    maybeReader.map(reader => {
       val data = e.readerFor(reader, rfc.withHeader())
       data.next()
     })
