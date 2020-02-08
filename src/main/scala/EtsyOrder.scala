@@ -1,4 +1,4 @@
-import kantan.csv.RowDecoder
+import kantan.csv.HeaderDecoder
 
 case class EtsyOrder(
   orderId: String,
@@ -14,42 +14,14 @@ object EtsyOrder {
   def indexedByOrderId(etsyOrders: List[EtsyOrder]): Map[String, EtsyOrder] =
     etsyOrders.map(order => order.orderId -> order).toMap
 
-  implicit val etsyOrderDecoder: RowDecoder[EtsyOrder] =
-    RowDecoder.decoder(1, 14, 16, 21, 23, 25,26 )(EtsyOrder.apply)
+  implicit val etsyOrderDecoder: HeaderDecoder[EtsyOrder] =
+    HeaderDecoder.decoder(
+      "Order ID",
+      "Delivery Country",
+      "Order Value",
+      "Delivery",
+      "Order total",
+      "Card Processing Fees",
+      "Order Net"
+    )(EtsyOrder.apply)
 }
-
-// "Sale Date",
-// "Order ID",
-// "Buyer User ID",
-// "Full Name",
-// "First Name",
-// "Last Name",
-// "Number of Items",
-// "Payment Method",
-// "Date Posted",
-// "Street 1",
-// "Street 2",
-// "Delivery City",
-// "Delivery State",
-// "Delivery Zipcode",
-// "Delivery Country",
-// Currency,
-// "Order Value",
-// "Coupon Code",
-// "Coupon Details",
-// "Discount Amount",
-// "Delivery Discount",
-// Delivery,
-// "Sales tax",
-// "Order Total",
-// Status,
-// "Card Processing Fees",
-// "Order Net",
-// "Adjusted Order Total",
-// "Adjusted Card Processing Fees",
-// "Adjusted Net Order Amount",
-// Buyer,
-// "Order Type",
-// "Payment Type",
-// "InPerson Discount",
-// "InPerson Location"
