@@ -4,12 +4,23 @@ import java.io.File
 import kantan.csv._
 import kantan.csv.ops._
 import Utils._
+import kantan.csv.engine.ReaderEngine
 
 object Main extends App {
 
   def readCsv[A: HeaderDecoder](filename: String): List[ReadResult[A]] = {
     val file = new File(filename)
     file.asCsvReader[A](rfc.withHeader()).toList
+  }
+
+  def readHeader[A: HeaderDecoder](filename: String)
+                                  (implicit e: ReaderEngine): Either[ParseError, ReadResult[Seq[String]]] = {
+    val file = new File(filename)
+    val reader = CsvSource[File].open(file)
+    reader.map(reader => {
+      val data = e.readerFor(reader, rfc.withHeader())
+      data.next()
+    })
   }
 
   val cliParser = CliParser(args)
