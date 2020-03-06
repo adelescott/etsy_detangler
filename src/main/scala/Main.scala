@@ -27,10 +27,12 @@ object Main extends App {
 
   val etsyStatementRowsReadResults = readCsv[EtsyStatementRow](cliParser.etsyStatementFilename())
   val etsyOrdersReadResults = readCsv[EtsyOrder](cliParser.etsyOrdersFilename())
+  val etsyOrdersPrevMonthReadResults = readCsv[EtsyOrder](cliParser.etsyOrdersFilenamePrevMonth())
   val etsySoldItemsReadResults = readCsv[EtsySoldItem](cliParser.etsySoldItemsFilename())
+  val etsySoldItemsPrevMonthReadResults = readCsv[EtsySoldItem](cliParser.etsySoldItemsFilenamePrevMonth())
 
-  val etsyOrdersReadResult = coalesceEithers(etsyOrdersReadResults)
-  val etsySoldItemsReadResult = coalesceEithers(etsySoldItemsReadResults)
+  val etsyOrdersReadResult = coalesceEithers(etsyOrdersReadResults ++ etsyOrdersPrevMonthReadResults)
+  val etsySoldItemsReadResult = coalesceEithers(etsySoldItemsReadResults ++ etsySoldItemsPrevMonthReadResults)
 
   val managerTransactionsResults = etsyStatementRowsReadResults.par.map { etsyStatementRowReadResult =>
     for {

@@ -97,8 +97,9 @@ case class EtsyStatementRow(
   def toRefund: Either[String, Refund] = {
     if(amount == 0 || feesAndTaxes == 0 || net != amount + feesAndTaxes)
       println("Warning: Refund fees and taxes was zero, amount was zero or net was " +
-        s"not equal to amount plus fees and taxes. EtsyStatementRow: ${this.toString}")
-    Right(Refund(date, title, amount, feesAndTaxes))
+        s"not equal to amount plus fees and taxes. Using the net and fees as the source of truth. " +
+        s"EtsyStatementRow: ${this.toString}")
+    Right(Refund(date, title, net - feesAndTaxes, feesAndTaxes))
   }
 
   /**
