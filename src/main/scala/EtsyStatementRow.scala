@@ -94,12 +94,12 @@ case class EtsyStatementRow(
    * * fees and taxes is non-zero,
    * * net is equal to fees and taxes plus amount.
    */
-  def toRefund: Either[String, Refund] =
+  def toRefund: Either[String, Refund] = {
     if(amount == 0 || feesAndTaxes == 0 || net != amount + feesAndTaxes)
-      Left("Could not create Refund transaction. Fees and taxes was zero, amount was zero or net was " +
+      println("Warning: Refund fees and taxes was zero, amount was zero or net was " +
         s"not equal to amount plus fees and taxes. EtsyStatementRow: ${this.toString}")
-    else
-      Right(Refund(date, title, amount, feesAndTaxes))
+    Right(Refund(date, title, amount, feesAndTaxes))
+  }
 
   /**
    * Converts this row into a Payment Etsy transaction type. This validates that:
