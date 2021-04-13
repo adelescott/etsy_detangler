@@ -1,13 +1,13 @@
 import kantan.csv.HeaderDecoder
 
 case class EtsyOrder(
-  orderId: String,
-  deliveryCountry: String,
-  orderValue: BigDecimal,
-  deliveryValue: BigDecimal,
-  orderTotal: BigDecimal,
-  cardProcessingFee: BigDecimal,
-  orderNet: BigDecimal
+    orderId: String,
+    deliveryCountry: String,
+    orderValue: BigDecimal,
+    deliveryValue: BigDecimal,
+    orderTotal: BigDecimal,
+    cardProcessingFee: BigDecimal,
+    orderNet: BigDecimal
 )
 
 object EtsyOrder {

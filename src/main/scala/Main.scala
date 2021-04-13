@@ -13,8 +13,9 @@ object Main extends App {
     file.asCsvReader[A](rfc.withHeader()).toList
   }
 
-  def readHeader[A: HeaderDecoder](filename: String)
-                                  (implicit e: ReaderEngine): Either[ParseError, ReadResult[Seq[String]]] = {
+  def readHeader[A: HeaderDecoder](
+      filename: String
+  )(implicit e: ReaderEngine): Either[ParseError, ReadResult[Seq[String]]] = {
     val file = new File(filename)
     val maybeReader = CsvSource[File].open(file)
     maybeReader.map(reader => {
@@ -23,43 +24,59 @@ object Main extends App {
     })
   }
 
-  val cliParser = CliParser(args)
+  val cliParser = CliParser(args.toSeq)
 
-  val etsyStatementRowsReadResults = readCsv[EtsyStatementRow](cliParser.etsyStatementFilename())
+  val etsyStatementRowsReadResults =
+    readCsv[EtsyStatementRow](cliParser.etsyStatementFilename())
   val etsyOrdersReadResults = readCsv[EtsyOrder](cliParser.etsyOrdersFilename())
-  val etsyOrdersPrevMonthReadResults = readCsv[EtsyOrder](cliParser.etsyOrdersFilenamePrevMonth())
-  val etsySoldItemsReadResults = readCsv[EtsySoldItem](cliParser.etsySoldItemsFilename())
-  val etsySoldItemsPrevMonthReadResults = readCsv[EtsySoldItem](cliParser.etsySoldItemsFilenamePrevMonth())
+  val etsyOrdersPrevMonthReadResults =
+    readCsv[EtsyOrder](cliParser.etsyOrdersFilenamePrevMonth())
+  val etsySoldItemsReadResults =
+    readCsv[EtsySoldItem](cliParser.etsySoldItemsFilename())
+  val etsySoldItemsPrevMonthReadResults =
+    readCsv[EtsySoldItem](cliParser.etsySoldItemsFilenamePrevMonth())
 
-  val etsyOrdersReadResult = coalesceEithers(etsyOrdersReadResults ++ etsyOrdersPrevMonthReadResults)
-  val etsySoldItemsReadResult = coalesceEithers(etsySoldItemsReadResults ++ etsySoldItemsPrevMonthReadResults)
+  val etsyOrdersReadResult = coalesceEithers(
+    etsyOrdersReadResults ++ etsyOrdersPrevMonthReadResults
+  )
+  val etsySoldItemsReadResult = coalesceEithers(
+    etsySoldItemsReadResults ++ etsySoldItemsPrevMonthReadResults
+  )
 
-  val managerTransactionsResults = etsyStatementRowsReadResults.par.map { etsyStatementRowReadResult =>
-    for {
-      etsyOrders <- etsyOrdersReadResult
-      etsySoldItems <- etsySoldItemsReadResult
-      etsyStatementRow <- etsyStatementRowReadResult
-      etsyTransaction <- etsyStatementRow.toEtsyTransaction
-      managerTransaction <- etsyTransaction.toManagerTransactions(
-        EtsyOrder.indexedByOrderId(etsyOrders),
-        EtsySoldItem.indexedByTransactionId(etsySoldItems)
-      )
-    } yield managerTransaction
+  val managerTransactionsResults = etsyStatementRowsReadResults.par.map {
+    etsyStatementRowReadResult =>
+      for {
+        etsyOrders <- etsyOrdersReadResult
+        etsySoldItems <- etsySoldItemsReadResult
+        etsyStatementRow <- etsyStatementRowReadResult
+        etsyTransaction <- etsyStatementRow.toEtsyTransaction
+        managerTransaction <- etsyTransaction.toManagerTransactions(
+          EtsyOrder.indexedByOrderId(etsyOrders),
+          EtsySoldItem.indexedByTransactionId(etsySoldItems)
+        )
+      } yield managerTransaction
   }
 
-  val managerTransactionsResult = coalesceEithers(managerTransactionsResults.toList).map(_.flatten)
+  val managerTransactionsResult =
+    coalesceEithers(managerTransactionsResults.toList).map(_.flatten)
 
   managerTransactionsResult match {
     case Right(managerTransactions) =>
-      val outputFile = new File(cliParser.outputDir() + "/detangled_etsy_statement.csv")
+      val outputFile = new File(
+        cliParser.outputDir() + "/detangled_etsy_statement.csv"
+      )
       try {
         outputFile.writeCsv[ManagerTransaction](
           managerTransactions,
           rfc.withHeader("Date", "Reference", "Payee", "Description", "Amount")
         )
       } catch {
-        case err: Exception => println(s"Error(s) detangling Etsy:\n${err.toString}\nNo output file written.")
+        case err: Exception =>
+          println(
+            s"Error(s) detangling Etsy:\n${err.toString}\nNo output file written."
+          )
       }
-    case Left(error) => println(s"Error(s) detangling Etsy: $error\nNo output file written.")
+    case Left(error) =>
+      println(s"Error(s) detangling Etsy: $error\nNo output file written.")
   }
 }

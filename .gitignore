@@ -1,7 +1,14 @@
 # sbt
 project/target
-project/project/target
+project/project
 target/
 
 # Intellij
 .idea/
+
+# VSCode
+.vscode/
+.metals/
+.bloop/
+project/metals.sbt
+.scalafmt.conf

@@ -4,7 +4,8 @@ case class CliParser(arguments: Seq[String]) extends ScallopConf(arguments) {
   val etsyStatementFilename: ScallopOption[String] = opt[String](
     required = true,
     short = 's',
-    descr = "Etsy statement filename.")
+    descr = "Etsy statement filename."
+  )
   val etsyOrdersFilename: ScallopOption[String] = opt[String](
     required = true,
     short = 'd',

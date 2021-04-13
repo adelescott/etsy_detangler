@@ -6,19 +6,19 @@ case class Deposit(date: Date, title: String) extends EtsyTransaction {
     val pattern = """^AU\$(\d+\.\d+) sent to your bank account$""".r
     title match {
       case pattern(amount) => Right(BigDecimal(amount.toDouble))
-      case _ => Left("Could not extract deposit amount.")
+      case _               => Left("Could not extract deposit amount.")
     }
   }
 
   override def toManagerTransactions(
-    etsyOrders: Map[String, EtsyOrder],
-    etsySoldItems: Map[String, EtsySoldItem]
+      etsyOrders: Map[String, EtsyOrder],
+      etsySoldItems: Map[String, EtsySoldItem]
   ): Either[String, List[ManagerTransaction]] = {
     val managerTransactions = for {
       depositAmount <- extractDepositAmount(title)
     } yield List(ManagerTransaction(date, "Deposit: " + title, -depositAmount))
-    managerTransactions.mapLeft(
-      err => s"Could not process Deposit transaction. $err Deposit transaction: ${this.toString}"
+    managerTransactions.mapLeft(err =>
+      s"Could not process Deposit transaction. $err Deposit transaction: ${this.toString}"
     )
   }
 }
