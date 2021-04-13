@@ -20,6 +20,7 @@ case class EtsyStatementRow(
     transactionType match {
       case "Listing"       => toListing
       case "Postage Label" => toShippingLabel
+      case "Postage label" => toShippingLabel
       case "Transaction"   => toCommission
       case "Sale"          => toSale
       case "Deposit"       => toDeposit
