@@ -3,7 +3,7 @@ import Utils._
 
 case class Deposit(date: Date, title: String) extends EtsyTransaction {
   val extractDepositAmount: String => Either[String, BigDecimal] = title => {
-    val pattern = """^AU\$(\d+,?\d+\.\d+) sent to your bank account$""".r
+    val pattern = """^AU\$((?:\d+,)*\d+\.\d+) sent to your bank account$""".r
     title match {
       case pattern(amount) =>
         Right(BigDecimal(amount.replaceAll(",", "").toDouble))
