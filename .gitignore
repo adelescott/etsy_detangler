@@ -11,4 +11,3 @@ target/
 .metals/
 .bloop/
 project/metals.sbt
-.scalafmt.conf
