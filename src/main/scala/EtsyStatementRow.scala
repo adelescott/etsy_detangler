@@ -31,8 +31,8 @@ case class EtsyStatementRow(
 
   /** Converts this row into a simple fee transaction type.  A simple fee has a Date, Description, Info and Net amount.
     * This validates that:
-    * * fees and taxes is non-zero,
-    * * amount is zero,
+    * * fees and taxes is non-zero (except for shipping commissions),
+    * * amount is zero (except for shipping commissions),
     * * net is equal to fees and taxes plus amount, and
     * * the info exists.
     */
@@ -41,7 +41,19 @@ case class EtsyStatementRow(
       feeConstructor: (Date, String, String, BigDecimal) => EtsyTransaction
   ): Either[String, EtsyTransaction] = infoOpt match {
     case Some(info) =>
-      if (feesAndTaxes == 0 || amount != 0 || net != amount + feesAndTaxes)
+      if (net != amount + feesAndTaxes)
+        Left(
+          s"Could not create $feeName transaction. Net was " +
+            s"not equal to amount plus fees and taxes. EtsyStatementRow: ${this.toString}"
+        )
+      else if (title == "Delivery" && (feesAndTaxes != 0 || amount == 0))
+      // Shipping commissions are the only fee type that contains the fee value in the "Amount"
+      // column instead of the "Fees & Taxes" column. As of sometime in 2021/2022.
+        Left(
+          s"Could not create shipping $feeName transaction. Fees and taxes was non-zero or amount was zero. " +
+            s"EtsyStatementRow: ${this.toString}"
+        )
+      else if (title != "Delivery" && (feesAndTaxes == 0 || amount != 0 || net != amount + feesAndTaxes))
         Left(
           s"Could not create $feeName transaction. Fees and taxes was zero, amount was non-zero or net was " +
             s"not equal to amount plus fees and taxes. EtsyStatementRow: ${this.toString}"
