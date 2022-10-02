@@ -1,6 +1,6 @@
 name := "etsy_detangler"
 
-version := "0.1"
+version := "1.0"
 
 scalaVersion := "2.13.5"
 scalacOptions += "-deprecation"

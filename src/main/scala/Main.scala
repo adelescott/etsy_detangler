@@ -6,13 +6,30 @@ import kantan.csv.ops._
 import Utils._
 import kantan.csv.engine.ReaderEngine
 
+
+/*
+Separate Commission into a SaleCommission and ShippingCommission.
+Create a CardProcessingFee, this is not part of a Sale or Refund transactions any more.
+Update the shipping refund guess to $9.50.
+Rename Listing to ListingFee.
+A "Fee" supertype now covers: ListingFee, SaleCommission, ShippingCommission, CardProcessingFee. All of these have zero amount, and non-zero fee.
+Discard all the fee validation. Just need the EtsyOrders now to separate the postage from the sale amount.
+Change Sale validation. Fees should be zero, amount + fees should = net.
+*/
+
 object Main extends App {
 
+  /**
+    * Reads a csv file defined by the given HeaderDecoder e.g. EstyStatementRow.
+    */
   def readCsv[A: HeaderDecoder](filename: String): List[ReadResult[A]] = {
     val file = new File(filename)
     file.asCsvReader[A](rfc.withHeader()).toList
   }
 
+  /**
+    * Possibly unused?
+    */
   def readHeader[A: HeaderDecoder](
       filename: String
   )(implicit e: ReaderEngine): Either[ParseError, ReadResult[Seq[String]]] = {
@@ -26,48 +43,37 @@ object Main extends App {
 
   val cliParser = CliParser(args.toSeq)
 
-  val etsyStatementRowsReadResults =
-    readCsv[EtsyStatementRow](cliParser.etsyStatementFilename())
-  val etsyOrdersReadResults = readCsv[EtsyOrder](cliParser.etsyOrdersFilename())
-  val etsyOrdersPrevMonthReadResults =
-    readCsv[EtsyOrder](cliParser.etsyOrdersFilenamePrevMonth())
-  val etsySoldItemsReadResults =
-    readCsv[EtsySoldItem](cliParser.etsySoldItemsFilename())
-  val etsySoldItemsPrevMonthReadResults =
-    readCsv[EtsySoldItem](cliParser.etsySoldItemsFilenamePrevMonth())
+  // Read all csv files and parse into their row types
+  val etsyStatementRowsReadResults      = readCsv[EtsyStatementRow](cliParser.etsyStatementFilename())
+  val etsyOrdersCurrMonthReadResults    = readCsv[EtsyOrder](cliParser.etsyOrdersFilename())
+  val etsyOrdersPrevMonthReadResults    = readCsv[EtsyOrder](cliParser.etsyOrdersFilenamePrevMonth())
 
-  val etsyOrdersReadResult = coalesceEithers(
-    etsyOrdersReadResults ++ etsyOrdersPrevMonthReadResults
-  )
-  val etsySoldItemsReadResult = coalesceEithers(
-    etsySoldItemsReadResults ++ etsySoldItemsPrevMonthReadResults
-  )
+  // Combine orders from the previous month and this month, and coalese from a list of eithers into an
+  // either of list, for convenience.
+  val etsyOrdersReadResult = coalesceEithers(etsyOrdersCurrMonthReadResults ++ etsyOrdersPrevMonthReadResults)
 
-  val managerTransactionsResults = etsyStatementRowsReadResults.par.map {
+  // Process each Etsy statement row, converting it into one or more transactions.
+  val transactionsResults = etsyStatementRowsReadResults.par.map {
     etsyStatementRowReadResult =>
       for {
         etsyOrders <- etsyOrdersReadResult
-        etsySoldItems <- etsySoldItemsReadResult
         etsyStatementRow <- etsyStatementRowReadResult
-        etsyTransaction <- etsyStatementRow.toEtsyTransaction
-        managerTransaction <- etsyTransaction.toManagerTransactions(
-          EtsyOrder.indexedByOrderId(etsyOrders),
-          EtsySoldItem.indexedByTransactionId(etsySoldItems)
-        )
-      } yield managerTransaction
+        transactions <- etsyStatementRow.toTransactions(EtsyOrder.indexedByOrderId(etsyOrders))
+      } yield transactions
   }
 
-  val managerTransactionsResult =
-    coalesceEithers(managerTransactionsResults.toList).map(_.flatten)
+  // Combine all the errors into one.
+  val transactionsResult = coalesceEithers(transactionsResults.toList).map(_.flatten)
 
-  managerTransactionsResult match {
-    case Right(managerTransactions) =>
+  // Write the output file, or fail.
+  transactionsResult match {
+    case Right(transactions) =>
       val outputFile = new File(
         cliParser.outputDir() + "/detangled_etsy_statement.csv"
       )
       try {
-        outputFile.writeCsv[ManagerTransaction](
-          managerTransactions,
+        outputFile.writeCsv[Transaction](
+          transactions,
           rfc.withHeader("Date", "Reference", "Payee", "Description", "Amount")
         )
       } catch {

@@ -1,4 +1,7 @@
 object Utils {
+  /**
+    * Converts a list of eithers into an either of list.
+    */
   def coalesceEithers[A, B](
       eithers: List[Either[A, B]]
   ): Either[String, List[B]] =

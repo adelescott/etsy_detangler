@@ -3,7 +3,9 @@ import java.util.Date
 
 import kantan.csv.RowDecoder
 
-/** Class to represent a row of an Etsy statement csv. toEtsyTransaction performs some basic validation of each row
+import Utils._
+
+/** Class to represent a row of an Etsy statement csv. toTransaction performs some basic validation of each row
   * based on my assumptions about how the row should look, and converts it into a stronger typed object based on the
   * Etsy transaction type.
   */
@@ -14,133 +16,195 @@ case class EtsyStatementRow(
     infoOpt: Option[String],
     amount: BigDecimal,
     feesAndTaxes: BigDecimal,
-    net: BigDecimal
+    net: BigDecimal,
+    taxDetails: String
 ) {
-  def toEtsyTransaction: Either[String, EtsyTransaction] =
+  def toTransactions(
+      etsyOrders: Map[String, EtsyOrder]
+  ): Either[String, List[Transaction]] =
     transactionType match {
-      case "Listing"       => toListing
-      case "Postage Label" => toShippingLabel
-      case "Postage label" => toShippingLabel
-      case "Transaction"   => toCommission
-      case "Sale"          => toSale
-      case "Deposit"       => toDeposit
-      case "Refund"        => toRefund
-      case "Payment"       => toPayment
-      case other           => Left("Unknown transaction type " + other)
+      case "Fee"      => toFee
+      case "Delivery" => toShippingLabel
+      case "Sale"     => toSale(etsyOrders)
+      case "Deposit"  => toDeposit
+      case "Refund"   => toRefund
+      case "Payment"  => toPayment
+      case other      => Left("Unknown transaction type " + other)
     }
 
-  /** Converts this row into a simple fee transaction type.  A simple fee has a Date, Description, Info and Net amount.
-    * This validates that:
-    * * fees and taxes is non-zero (except for shipping commissions),
-    * * amount is zero (except for shipping commissions),
-    * * net is equal to fees and taxes plus amount, and
-    * * the info exists.
+  /** Validates that net is equal to amount plus fees and taxes. Returns the net.
     */
-  def toSimpleFee(
-      feeName: String,
-      feeConstructor: (Date, String, String, BigDecimal) => EtsyTransaction
-  ): Either[String, EtsyTransaction] = infoOpt match {
-    case Some(info) =>
-      if (net != amount + feesAndTaxes)
-        Left(
-          s"Could not create $feeName transaction. Net was " +
-            s"not equal to amount plus fees and taxes. EtsyStatementRow: ${this.toString}"
-        )
-      else if (title == "Delivery" && (feesAndTaxes != 0 || amount == 0))
-      // Shipping commissions are the only fee type that contains the fee value in the "Amount"
-      // column instead of the "Fees & Taxes" column. As of sometime in 2021/2022.
-        Left(
-          s"Could not create shipping $feeName transaction. Fees and taxes was non-zero or amount was zero. " +
-            s"EtsyStatementRow: ${this.toString}"
-        )
-      else if (title != "Delivery" && (feesAndTaxes == 0 || amount != 0 || net != amount + feesAndTaxes))
-        Left(
-          s"Could not create $feeName transaction. Fees and taxes was zero, amount was non-zero or net was " +
-            s"not equal to amount plus fees and taxes. EtsyStatementRow: ${this.toString}"
-        )
-      else
-        Right(feeConstructor(date, title, info, net))
-    case None =>
+  def validateNet: Either[String, BigDecimal] =
+    if (net != amount + feesAndTaxes)
       Left(
-        s"""Could not create $feeName transaction. No "Info" provided. EtsyStatementRow: ${this.toString}"""
-      )
-  }
-
-  def toListing: Either[String, EtsyTransaction] =
-    toSimpleFee("Listing", Listing)
-  def toShippingLabel: Either[String, EtsyTransaction] =
-    toSimpleFee("Shipping Label", ShippingLabel)
-  def toCommission: Either[String, EtsyTransaction] =
-    toSimpleFee("Commission", Commission)
-
-  /** Converts this row into a Sale Etsy transanction type. This validates that:
-    * * amount, fees and taxes and net are all non-zero,
-    * * info exists.
-    *
-    * Note that this does NOT validate that amount + fees and taxes = net as this not true when Etsy has automatically
-    * collectd and remitted US state sales tax. We don't attempt to separate all the components of a Sale here (sale
-    * revenue, postage revenue, tax collected/remitted, credit card processing fees).
-    */
-  def toSale: Either[String, Sale] = infoOpt match {
-    case Some(info) =>
-      if (amount == 0 || feesAndTaxes == 0 || net == 0)
-        Left(
-          "Could not create Sale transaction. Amount, fees & taxes or net was unexpectedly zero. " +
-            s"EtsyStatementRow: ${this.toString}"
-        )
-      else
-        Right(Sale(date, title, info, amount, feesAndTaxes, net))
-    case None =>
-      Left(
-        s"""Could not create Sale transaction. No "Info" provided. EtsyStatementRow: ${this.toString}"""
-      )
-  }
-
-  /** Converts this row into a Deposit Etsy transaction type. This validates that:
-    * * net is zero.
-    *
-    * Etsy's deposit rows for some reason don't have a net amount, so we extract it from the text later on in the Deposit
-    * transaction type.
-    */
-  def toDeposit: Either[String, Deposit] = {
-    if (net != 0)
-      Left(
-        s"Could not create Deposit transaction. Net was unexpectedly zero. EtsyStatementRow: ${this.toString}"
+        s"Net was not equal to amount plus fees and taxes."
       )
     else
-      Right(Deposit(date, title))
-  }
+      Right(net)
 
-  /** Converts this row into a Refund Etsy transaction type. This validates that:
-    * * amount is non-zero,
-    * * fees and taxes is non-zero,
-    * * net is equal to fees and taxes plus amount.
+  /** Validates that fees and taxes is non-zero and amount is zero. Returns the fees and taxes.
     */
-  def toRefund: Either[String, Refund] = {
-    if (amount == 0 || feesAndTaxes == 0 || net != amount + feesAndTaxes)
-      println(
-        "Warning: Refund fees and taxes was zero, amount was zero or net was " +
-          s"not equal to amount plus fees and taxes. Using the net and fees as the source of truth. " +
-          s"EtsyStatementRow: ${this.toString}"
+  def validateFeesAndTaxes: Either[String, BigDecimal] =
+    if (feesAndTaxes == 0 || amount != 0)
+      Left(
+        s"Fees and taxes was zero or amount was non-zero."
       )
-    Right(Refund(date, title, net - feesAndTaxes, feesAndTaxes))
-  }
+    else
+      Right(feesAndTaxes)
 
-  /** Converts this row into a Payment Etsy transaction type. This validates that:
-    * * amount plus fees and taxes is equal to net,
-    * * net is non-zero.
+  /** Validates that amount is non-zero and fees and taxes is zero. Returns the amount.
+    */
+  def validateAmount: Either[String, BigDecimal] =
+    if (amount == 0 || feesAndTaxes != 0)
+      Left(
+        s"Amount was zero or fees and taxes was non-zero."
+      )
+    else
+      Right(amount)
+
+  /** Validates that info was provided. Returns the info.
+    */
+  def validateInfo: Either[String, String] = infoOpt.toRight(
+    s"""No "Info" provided."""
+  )
+
+  /** This fee could be one of:
+    * * Card processing fee
+    * * Card processing fee credit
+    * * Sale commission
+    * * Sale commission credit
+    * * Shipping commission
+    * * Shipping commission credit
+    * * Listing fee
+    * but we leave it up to Manager filters to disambiguate.
+    */
+  def toFee: Either[String, List[Transaction]] = {
+    for {
+      net <- validateNet
+      _ <- validateFeesAndTaxes
+    } yield List(Transaction(date, title, net))
+  }.mapLeft(err =>
+    s"Could not process fee transaction. $err Fee transaction: ${this.toString}"
+  )
+
+  /** Converts this row into a shipping label transaction. This is when you buy a shipping
+    * label from Etsy. The description is in the info.
+    */
+  def toShippingLabel: Either[String, List[Transaction]] = {
+    for {
+      net <- validateNet
+      _ <- validateFeesAndTaxes
+      info <- validateInfo
+    } yield List(Transaction(date, info, net))
+  }.mapLeft(err =>
+    s"Could not process shipping label transaction. $err Shipping label transaction: ${this.toString}"
+  )
+
+  /** Converts this row into sales and postage revenue as two separate transactions.
+    *
+    * Etsy combines revenue from both the product and the shipping in the one line, so we need
+    * to separate them out using the orders CSV. And helpfully it gives the order ID not in the
+    * info like every other transaction type does, it gives it in the text of the title. So
+    * we need to regex it out.
+    */
+  def toSale(
+      etsyOrders: Map[String, EtsyOrder]
+  ): Either[String, List[Transaction]] = {
+    for {
+      net <- validateNet
+      _ <- validateAmount
+      orderId <- {
+        val pattern = """^Payment for Order #(\d+)$""".r
+        title match {
+          case pattern(orderId) => Right(orderId)
+          case _                => Left("Could not extract order ID from transaction title.")
+        }
+      }
+      order <- etsyOrders
+        .get(orderId)
+        .toRight(s"Could not find order ID $orderId in orders csv file.")
+      orderTotal <- {
+        if (order.orderTotal != net)
+          Left("Order total was not equal to net.")
+        else if (order.orderTotal != order.orderValue + order.deliveryValue)
+          Left(
+            "Order total was not equal to sale revenue plus shipping revenue."
+          )
+        else
+          Right(order.orderTotal)
+      }
+    } yield {
+      List(
+        Transaction(date, s"Sale revenue: order: $orderId", order.orderValue),
+        Transaction(date, s"Shipping revenue: order: $orderId", order.deliveryValue)
+      )
+    }
+  }.mapLeft(err =>
+    s"Could not process sale transaction. $err Sale transaction: ${this.toString}"
+  )
+
+  /** Converts this row into a deposit. A deposit is when Etsy transfers money into your bank
+    * account.
+    *
+    * Etsy's deposit rows for some reason don't have a net amount, so we need to extract it from
+    * the text.
+    */
+  def toDeposit: Either[String, List[Transaction]] = {
+    for {
+      _ <- validateNet
+      depositAmount <- {
+        val pattern =
+          """^AU\$((?:\d+,)*\d+\.\d+) sent to your bank account$""".r
+        title match {
+          case pattern(amount) =>
+            Right(BigDecimal(amount.replaceAll(",", "").toDouble))
+          case _ => Left("Could not extract amount from deposit transaction.")
+        }
+      }
+    } yield {
+      List(Transaction(date, "Deposit: " + title, -depositAmount))
+    }
+  }.mapLeft(err =>
+    s"Could not process deposit transaction. $err Deposit transaction: ${this.toString}"
+  )
+
+  /** Converts this row into a refund. It's impossible to know whether the refund was for shipping or
+    * for a sale. We can somewhat infer it from the price though. $9.50 almost certainly means a shipping
+    * refund, so we'll put this down as shipping refund, else sales refund.
+    */
+  def toRefund: Either[String, List[Transaction]] = {
+    for {
+      net <- validateNet
+      _ <- validateAmount
+    } yield {
+      List(
+        Transaction(
+          date,
+          if (amount == BigDecimal(-9.5)) "Shipping refund: " + title
+          else "Sale refund: " + title,
+          net
+        )
+      )
+    }
+  }.mapLeft(err =>
+    s"Could not process refund transaction. $err Refund transaction: ${this.toString}"
+  )
+
+  /** Converts this row into a payment Etsy transaction type. A payment is when Etsy draws funds from your
+    * bank account to cover a shortfall in your payment account.
     *
     * It seems that sometimes Etsy places the amount of the payment in Amount and sometimes in Fees & Taxes, depending
-    * on whether the payment is for a refund (Amount) or for an outstanding negative balance (Fees & Taxes).
+    * on whether the payment is for a refund (Amount) or for an otherwise outstanding negative balance (Fees & Taxes).
     */
-  def toPayment: Either[String, Payment] =
-    if (feesAndTaxes + amount != net || net == 0)
-      Left(
-        "Could not create Payment transaction. Amount plus fees & taxes wasn't " +
-          s"equal to net, or net was zero. EtsyStatementRow: ${this.toString}"
-      )
-    else
-      Right(Payment(date, title, net))
+  def toPayment: Either[String, List[Transaction]] = {
+    for {
+      net <- validateNet
+    } yield {
+      List(Transaction(date, title, net))
+    }
+  }.mapLeft(err =>
+    s"Could not process payment transaction. $err Payment transaction: ${this.toString}"
+  )
 }
 
 object EtsyStatementRow {
@@ -154,7 +218,8 @@ object EtsyStatementRow {
           _: String, /* Currency */
           amount: String,
           feesAndTaxes: String,
-          net: String
+          net: String,
+          taxDetails: String
       ) =>
         {
           EtsyStatementRow(
@@ -164,7 +229,8 @@ object EtsyStatementRow {
             info,
             currencyToNumeric(amount),
             currencyToNumeric(feesAndTaxes),
-            currencyToNumeric(net)
+            currencyToNumeric(net),
+            taxDetails
           )
         }
     }
