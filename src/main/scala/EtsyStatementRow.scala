@@ -123,19 +123,19 @@ case class EtsyStatementRow(
       order <- etsyOrders
         .get(orderId)
         .toRight(s"Could not find order ID $orderId in orders csv file.")
-      orderTotal <- {
+      _ <- {
         if (order.orderTotal != net)
           Left("Order total was not equal to net.")
-        else if (order.orderTotal != order.orderValue + order.deliveryValue)
+        else if (order.orderTotal != order.orderValue - order.orderDiscount + order.deliveryValue)
           Left(
-            "Order total was not equal to sale revenue plus shipping revenue."
+            s"Order total was not equal to sale revenue plus shipping revenue minus discounts. Order: ${order.toString}"
           )
         else
           Right(order.orderTotal)
       }
     } yield {
       List(
-        Transaction(date, s"Sale revenue: order: $orderId", order.orderValue),
+        Transaction(date, s"Sale revenue: order: $orderId", order.orderValue - order.orderDiscount),
         Transaction(date, s"Shipping revenue: order: $orderId", order.deliveryValue)
       )
     }
