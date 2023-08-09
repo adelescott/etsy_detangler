@@ -169,7 +169,7 @@ case class EtsyStatementRow(
   )
 
   /** Converts this row into a refund. It's impossible to know whether the refund was for shipping or
-    * for a sale. We can somewhat infer it from the price though. $9.50 almost certainly means a shipping
+    * for a sale. We can somewhat infer it from the price though. $10 almost certainly means a shipping
     * refund, so we'll put this down as shipping refund, else sales refund.
     */
   def toRefund: Either[String, List[Transaction]] = {
@@ -180,7 +180,7 @@ case class EtsyStatementRow(
       List(
         Transaction(
           date,
-          if (amount == BigDecimal(-9.5)) "Shipping refund: " + title
+          if (amount == BigDecimal(-10)) "Shipping refund: " + title
           else "Sale refund: " + title,
           net
         )
